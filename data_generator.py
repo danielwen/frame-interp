@@ -45,7 +45,7 @@ class DataGenerator(object):
                 self.data.append(paths[i : i + n_context + 1])
 
         self.N = len(self.data)
-        self.steps_per_epoch = (self.N + batch_size - 1) // batch_size
+        self.steps = (self.N + batch_size - 1) // batch_size
         self.reset()
 
     def reset(self):
@@ -92,5 +92,4 @@ class DataGenerator(object):
 if __name__ == "__main__":
     folder = "DAVIS_Train_Val"
     data_gen = DataGenerator(folder, 16, 256, 512, 2)
-    it = data_gen()
     next(it)

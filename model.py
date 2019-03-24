@@ -152,9 +152,17 @@ class VAE(object):
 
         optimizer = keras.optimizers.Adam(lr)
         model_train.compile(optimizer=optimizer, loss=losses)
+        model_test.compile(optimizer=optimizer, loss=keras.losses.mean_squared_error)
 
         self.model_train = model_train
         self.model_test = model_test
+
+    def save(self, filename):
+        self.model_train.save_weights(filename)
+
+    def load(self, filename):
+        self.model_train.load_weights(filename)
+        self.model_test.load_weights(filename, by_name=True)
 
 
 if __name__ == "__main__":

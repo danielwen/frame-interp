@@ -43,9 +43,9 @@ def main():
                 dist = np.mean((pred - mid_frame)**2)
                 dists.append(dist)
 
-    avg_dists = tuple([255 * np.mean(dists)
+    avg_dists = tuple([np.mean(dists)
         for dists in (start_dists, end_dists, interp_dists)])
-    print("Identity1: %.2f | Identity2: %.2f | NaiveInterp: %.2f" % avg_dists)
+    print("Identity1: %.4f | Identity2: %.4f | NaiveInterp: %.4f" % avg_dists)
 
 
 main()
