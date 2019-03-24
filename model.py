@@ -3,76 +3,102 @@ from keras import backend as K
 from keras import layers
 
 
-def conv_bn_relu(inputs, filters):
-    conv = layers.Conv2D(filters, (3, 3), padding="same")
-    bn = layers.BatchNormalization()
-    relu = layers.ReLU()
+class ConvBnRelu(object):
+    def __init__(self, filters):
+        self.conv = layers.Conv2D(filters, (3, 3), padding="same")
+        self.bn = layers.BatchNormalization()
+        self.relu = layers.ReLU()
 
-    return relu(bn(conv(inputs)))
+    def __call__(self, inputs):
+        return self.relu(self.bn(self.conv(inputs)))
 
-def encoder_block(inputs, filters):
-    h = conv_bn_relu(inputs, filters)
-    pool = layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
-    return h, pool(h)
+class EncoderBlock(object):
+    def __init__(self, filters):
+        self.conv_bn_relu = ConvBnRelu(filters)
+        self.pool = layers.MaxPooling2D(pool_size=(2, 2), strides=(2, 2))
 
-def decoder_block(input_, feature_map, filters, output_channels=None):
-    concat = layers.Concatenate()
-    deconv = layers.Conv2DTranspose(filters // 2, (3, 3), strides=(2, 2), padding="same")
+    def __call__(self, inputs):
+        h = self.conv_bn_relu(inputs)
+        return h, self.pool(h)
 
-    inputs = concat([input_, feature_map])
+class DecoderBlock(object):
+    def __init__(self, filters):
+        self.concat = layers.Concatenate()
+        self.deconv = layers.Conv2DTranspose(filters // 2, (3, 3), strides=(2, 2), padding="same")
+        self.conv_bn_relu = ConvBnRelu(filters)
 
-    if output_channels is not None:
-        filters = output_channels
+    def __call__(self, input_, feature_map):
+        inputs = self.concat([input_, feature_map])
+        h = self.conv_bn_relu(inputs)
+        output = self.deconv(h)
 
-    h = conv_bn_relu(inputs, filters)
-    output = deconv(h)
+        return output, h
 
-    return output, h
+class Encoder(object):
+    def __init__(self, layers_filters):
+        self.encoder_blocks = []
 
-def encoder(inputs, layers_filters):
-    pooled = inputs
-    feature_maps = []
+        for filters in layers_filters:
+            self.encoder_blocks.append(EncoderBlock(filters))
 
-    for filters in layers_filters:
-        feature_map, pooled = encoder_block(pooled, filters)
-        feature_maps.append(feature_map)
+    def __call__(self, inputs):
+        pooled = inputs
+        feature_maps = []
 
-    return pooled, feature_maps
+        for encoder_block in self.encoder_blocks:
+            feature_map, pooled = encoder_block(pooled)
+            feature_maps.append(feature_map)
 
-def decoder(inputs, feature_maps, layers_filters):
-    for filters, feature_map in zip(layers_filters, feature_maps):
-        inputs, h = decoder_block(inputs, feature_map, filters)
+        return pooled, feature_maps
 
-    return h
+class Decoder(object):
+    def __init__(self, layers_filters):
+        self.decoder_blocks = []
 
-def q(input_, context_input, encoder_layers_filters, latent_size):
-    concat = layers.Concatenate()
-    flatten = layers.Flatten()
-    dense1 = layers.Dense(latent_size)
-    dense2 = layers.Dense(latent_size)
+        for filters in layers_filters:
+            self.decoder_blocks.append(DecoderBlock(filters))
 
-    inputs = concat([input_, context_input])
-    h, _ = encoder(inputs, encoder_layers_filters)
-    flat = flatten(h)
-    mean = dense1(flat)
-    log_var = dense2(flat)
+    def __call__(self, inputs, feature_maps):
+        for feature_map, decoder_block in zip(feature_maps, self.decoder_blocks):
+            inputs, h = decoder_block(inputs, feature_map)
 
-    return mean, log_var
+        return h
 
-def p(z, context_input, encoder_layers_filters, decoder_layers_filters, latent_size):
-    concat = layers.Concatenate()
-    flatten = layers.Flatten()
-    dense = layers.Dense(latent_size)
-    reshape = layers.Reshape((1, 1, latent_size))
-    deconv = layers.Conv2DTranspose(1024, (3, 3), strides=(2, 2), padding="same")
+class Q(object):
+    def __init__(self, encoder_layers_filters, latent_size):
+        self.concat = layers.Concatenate()
+        self.flatten = layers.Flatten()
+        self.dense1 = layers.Dense(latent_size, name="mean")
+        self.dense2 = layers.Dense(latent_size, name="log_var")
+        self.encoder = Encoder(encoder_layers_filters)
 
-    pooled, feature_maps = encoder(context_input, encoder_layers_filters)
-    flat = flatten(pooled)
-    merged = concat([flat, z])
-    inputs = reshape(dense(merged))
-    output = decoder(deconv(inputs), reversed(feature_maps), decoder_layers_filters)
+    def __call__(self, input_, context_input):
+        inputs = self.concat([input_, context_input])
+        h, _ = self.encoder(inputs)
+        flat = self.flatten(h)
+        mean = self.dense1(flat)
+        log_var = self.dense2(flat)
 
-    return output
+        return mean, log_var
+
+class P(object):
+    def __init__(self, encoder_layers_filters, decoder_layers_filters, latent_size):
+        self.concat = layers.Concatenate()
+        self.flatten = layers.Flatten()
+        self.dense = layers.Dense(latent_size)
+        self.reshape = layers.Reshape((1, 1, latent_size))
+        self.deconv = layers.Conv2DTranspose(1024, (3, 3), strides=(2, 2), padding="same")
+        self.encoder = Encoder(encoder_layers_filters)
+        self.decoder = Decoder(decoder_layers_filters)
+
+    def __call__(self, z, context_input):
+        pooled, feature_maps = self.encoder(context_input)
+        flat = self.flatten(pooled)
+        merged = self.concat([flat, z])
+        inputs = self.reshape(self.dense(merged))
+        output = self.decoder(self.deconv(inputs), reversed(feature_maps))
+
+        return output
 
 def sample_z(args):
     (noise, mean, log_var) = args
@@ -95,26 +121,41 @@ class VAE(object):
         decoder_layers_filters = encoder_layers_filters[::-1]
         decoder_layers_filters[-1] = 3
 
-        input_ = layers.Input(shape=input_shape)
-        context_input = layers.Input(shape=context_shape)
-        noise = layers.Input(shape=(latent_size,))
+        q = Q(encoder_layers_filters, latent_size)
+        p = P(encoder_layers_filters, decoder_layers_filters, latent_size)
 
-        mean, log_var = q(input_, context_input, encoder_layers_filters, latent_size)
-        z = layers.Lambda(sample_z)([noise, mean, log_var])
-        pred = p(z, context_input, encoder_layers_filters, decoder_layers_filters, latent_size)
-        z_param = layers.Concatenate(axis=-2)([
+        input_ = layers.Input(shape=input_shape, name="input_frame")
+        context_input = layers.Input(shape=context_shape, name="input_ctx")
+        noise = layers.Input(shape=(latent_size,), name="input_noise")
+        z_test = layers.Input(shape=(latent_size,), name="z_test")
+
+        mean, log_var = q(input_, context_input)
+        z = layers.Lambda(sample_z, name="z")([noise, mean, log_var])
+
+        pred_train = p(z, context_input)
+        z_param = layers.Concatenate(axis=-2, name="z_params")([
             layers.Reshape((1, latent_size))(mean),
             layers.Reshape((1, latent_size))(log_var)
         ])
 
-        model = keras.models.Model(inputs=[input_, noise, context_input],
-            outputs=[pred, z_param])
-        # model.summary()
+        pred_test = p(z_test, context_input)
+
+        model_train = keras.models.Model(inputs=[input_, noise, context_input],
+            outputs=[pred_train, z_param])
+        # keras.utils.plot_model(model_train, to_file="model.png")
+        # model_train.summary()
+
+        model_test = keras.models.Model(inputs=[z_test, context_input],
+            outputs=[pred_test])
 
         losses = [keras.losses.mean_squared_error, kl]
 
         optimizer = keras.optimizers.Adam(lr)
-        model.compile(optimizer=optimizer, loss=losses)
+        model_train.compile(optimizer=optimizer, loss=losses)
+
+        self.model_train = model_train
+        self.model_test = model_test
 
 
-vae = VAE()
+if __name__ == "__main__":
+    vae = VAE()
