@@ -1,4 +1,5 @@
-import keras
+import numpy as np
+from scipy.misc import imsave
 from data_generator import DataGenerator
 from model import VAE
 
@@ -27,11 +28,10 @@ vae.load("model.h5")
 # test_loss = vae.model_test.evaluate_generator(test_data, steps=val_data.steps, verbose=1)
 # print(test_loss)
 
-train_input, _ = next(train_data)
-train_pred = vae.model_test.predict_on_batch(next(train_input))
+for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
+    input_, _ = next(train_data)
+    pred = vae.model_test.predict_on_batch(input_)
+    result = np.clip(pred, 0, 1)
 
-val_input, _ = next(val_data)
-val_pred = vae.model_test.predict_on_batch(next(val_input))
-
-test_input, _ = next(test_data)
-test_pred = vae.model_test.predict_on_batch(next(test_input))
+    for i in range(result.shape[0]):
+        imsave("%s-%d.png" % (name, i), result[i])
