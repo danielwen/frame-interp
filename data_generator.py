@@ -92,4 +92,4 @@ class DataGenerator(object):
 if __name__ == "__main__":
     folder = "DAVIS_Train_Val"
     data_gen = DataGenerator(folder, 16, 256, 512, 2)
-    next(it)
+    result = next(data_gen)
