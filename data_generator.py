@@ -3,7 +3,13 @@ import glob
 import numpy as np
 import cv2
 
-
+'''
+    Input: 
+        folder - String
+    Output: 
+        dictionary - String -> String array
+        contains mapping from video name to an array containing frame names
+'''
 def get_sequence_paths(folder):
     pattern = os.path.join(folder, "**", "*.jpg")
     paths = glob.glob(pattern, recursive=True)

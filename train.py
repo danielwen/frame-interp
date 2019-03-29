@@ -1,6 +1,7 @@
 import keras
 from data_generator import DataGenerator
 from model import VAE
+import sys
 
 batch_size = 16
 image_size = 256
@@ -8,9 +9,15 @@ latent_size = 512
 n_context = 2
 epochs = 20
 
-train_data = DataGenerator("DAVIS_Train_Val", batch_size, image_size,
+if(len(sys.argv)==3):
+    train_folder = sys.argv[1]
+    val_folder = sys.argv[2]
+else:
+    train_folder = 'DAVIS_Train_Val'
+    val_folder = 'DAVIS_Dev'
+train_data = DataGenerator(train_folder, batch_size, image_size,
     latent_size, n_context)
-val_data = DataGenerator("DAVIS_Dev", batch_size, image_size, latent_size,
+val_data = DataGenerator(val_folder, batch_size, image_size, latent_size,
     n_context, test=True)
 
 vae = VAE()

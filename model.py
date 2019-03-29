@@ -148,11 +148,11 @@ class VAE(object):
         model_test = keras.models.Model(inputs=[z_test, context_input],
             outputs=[pred_test])
 
-        losses = [keras.losses.mean_squared_error, kl]
+        losses = [keras.losses.mean_absolute_error, kl]
 
         optimizer = keras.optimizers.Adam(lr)
         model_train.compile(optimizer=optimizer, loss=losses)
-        model_test.compile(optimizer=optimizer, loss=keras.losses.mean_squared_error)
+        model_test.compile(optimizer=optimizer, loss=keras.losses.mean_absolute_error)
 
         self.model_train = model_train
         self.model_test = model_test
