@@ -9,12 +9,14 @@ latent_size = 512
 n_context = 2
 epochs = 20
 
-if(len(sys.argv)==3):
+if(len(sys.argv)==4):
     train_folder = sys.argv[1]
     val_folder = sys.argv[2]
+    model_name = sys.argv[3]
 else:
     train_folder = 'DAVIS_Train_Val'
     val_folder = 'DAVIS_Dev'
+    model_name = 'model.h5'
 train_data = DataGenerator(train_folder, batch_size, image_size,
     latent_size, n_context)
 val_data = DataGenerator(val_folder, batch_size, image_size, latent_size,
@@ -32,5 +34,5 @@ for epoch in range(1, epochs + 1):
     print("Val Loss: %.4f" % loss)
 
     if loss < best_loss:
-        vae.save("model.h5")
+        vae.save(model_name)
         best_loss = loss
