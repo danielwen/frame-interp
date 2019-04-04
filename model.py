@@ -1,7 +1,16 @@
 import keras
 from keras import backend as K
-from keras import layers
+from keras import layers, Model
+from keras.applications import vgg16
 
+vgg_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
+# vgg_model.trainable = False
+loss_model = Model(inputs=vgg_model.input, outputs=vgg_model.get_layer('block3_conv3').output) 
+loss_model.trainable = False
+# loss_model._make_predict_function()
+
+# for layer in vgg_model.layers:
+#     layer.trainable=False
 
 class ConvBnRelu(object):
     def __init__(self, filters):
@@ -110,7 +119,12 @@ def kl(truth, pred):
     kl = 0.5 * K.sum(K.exp(log_var) + K.square(mean) - 1. - log_var, axis=1)
     return kl
 
-
+def vgg_loss(truth, pred):
+    
+    pred_feature = loss_model(pred)
+    truth_feature = loss_model(truth)
+    return K.mean(K.square(pred_feature - truth_feature)) 
+    
 class VAE(object):
     def __init__(self, lr=0.001):
         latent_size = 512
@@ -141,14 +155,15 @@ class VAE(object):
         pred_test = p(z_test, context_input)
 
         model_train = keras.models.Model(inputs=[input_, noise, context_input],
-            outputs=[pred_train, z_param])
+            outputs=[pred_train, z_param, pred_train])
+
         # keras.utils.plot_model(model_train, to_file="model.png")
         # model_train.summary()
 
         model_test = keras.models.Model(inputs=[z_test, context_input],
             outputs=[pred_test])
 
-        losses = [keras.losses.mean_absolute_error, kl]
+        losses = [keras.losses.mean_absolute_error, kl, vgg_loss]
 
         optimizer = keras.optimizers.Adam(lr)
         model_train.compile(optimizer=optimizer, loss=losses)
