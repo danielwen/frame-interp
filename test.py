@@ -47,7 +47,7 @@ vae.load(model_name)
 
 # for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
 input_, originals = next(test_data)
-pred = vae.model_test.predict_on_batch(input_)
+pred = vae.gen_model_test.predict_on_batch(input_)
 result = np.clip(pred, 0, 1)
 if(not os.path.isdir('./test_imgs/%s' % (model_prefix))):
     os.mkdir('./test_imgs/%s' % (model_prefix))
@@ -66,6 +66,6 @@ for s in range(steps):
         cur_psnr = psnr(originals[0][i], pred_64[i])
         avg_psnr += cur_psnr
     input_, originals = next(test_data)
-    pred = vae.model_test.predict_on_batch(input_)
+    pred = vae.gen_model_test.predict_on_batch(input_)
 print('avg ssim = %f' % (avg_ssim/test_data.batch_size/steps))
 print('avg psnr = %f' % (avg_psnr/test_data.batch_size/steps))

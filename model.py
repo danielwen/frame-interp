@@ -1,16 +1,8 @@
 import keras
 from keras import backend as K
 from keras import layers, Model
-from keras.applications import vgg16
-
-vgg_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
-# vgg_model.trainable = False
-loss_model = Model(inputs=vgg_model.input, outputs=vgg_model.get_layer('block3_conv3').output) 
-loss_model.trainable = False
-# loss_model._make_predict_function()
-
-# for layer in vgg_model.layers:
-#     layer.trainable=False
+from keras.applications import vgg16, mobilenet_v2
+# from discriminator import Discriminator
 
 class ConvBnRelu(object):
     def __init__(self, filters):
@@ -119,12 +111,28 @@ def kl(truth, pred):
     kl = 0.5 * K.sum(K.exp(log_var) + K.square(mean) - 1. - log_var, axis=1)
     return kl
 
-def vgg_loss(truth, pred):
+def get_vgg_loss():
+    # vgg_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    # loss_model = Model(inputs=vgg_model.input, outputs=vgg_model.get_layer('block3_conv3').output) 
+    mnet = mobilenet_v2.MobileNetV2(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    loss_model = Model(inputs=mnet.input, outputs=mnet.get_layer('block3_conv3').output) 
+    loss_model.trainable = False
+    def vgg_loss(truth, pred):    
+        pred_feature = loss_model(pred)
+        truth_feature = loss_model(truth)
+        return K.mean(K.square(pred_feature - truth_feature)) 
+    return vgg_loss
     
-    pred_feature = loss_model(pred)
-    truth_feature = loss_model(truth)
-    return K.mean(K.square(pred_feature - truth_feature)) 
-    
+def get_discriminator():
+    # vgg = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    # flat = layers.Flatten()(vgg.output)
+    mnet = mobilenet_v2.MobileNetV2(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    flat = layers.Flatten()(mnet.output)
+    fc1_out = layers.Dense(4096, activation='relu')(flat)
+    fc2_out = layers.Dense(4096, activation='relu')(fc1_out)
+    valid_score = layers.Dense(1, activation='sigmoid')(fc2_out)
+    return Model(inputs=vgg.input, outputs=valid_score)
+
 class VAE(object):
     def __init__(self, lr=0.001):
         latent_size = 512
@@ -154,31 +162,41 @@ class VAE(object):
 
         pred_test = p(z_test, context_input)
 
-        model_train = keras.models.Model(inputs=[input_, noise, context_input],
-            outputs=[pred_train, z_param, pred_train])
-
         # keras.utils.plot_model(model_train, to_file="model.png")
         # model_train.summary()
 
-        model_test = keras.models.Model(inputs=[z_test, context_input],
+        gen_model_test = keras.models.Model(inputs=[z_test, context_input],
             outputs=[pred_test])
 
-        losses = [keras.losses.mean_absolute_error, kl, vgg_loss]
-
         optimizer = keras.optimizers.Adam(lr)
-        model_train.compile(optimizer=optimizer, loss=losses)
-        model_test.compile(optimizer=optimizer, loss=keras.losses.mean_absolute_error)
+        gen_model_test.compile(optimizer=optimizer, loss=keras.losses.mean_absolute_error)
 
-        self.model_train = model_train
-        self.model_test = model_test
+        disc_model = get_discriminator()
+        disc_model.compile(optimizer=optimizer, loss='binary_crossentropy', metrics=['accuracy'])
+
+        #Freeze discriminator in combined model. combined model is used to train the generator
+        disc_model.trainable = False
+        valid_score = disc_model(pred_train)
+        combined_model = Model(inputs=[input_, noise, context_input], \
+            outputs=[pred_train, z_param, pred_train, valid_score])
+        losses = [keras.losses.mean_absolute_error, kl, get_vgg_loss(), keras.losses.binary_crossentropy]
+        combined_model.compile(optimizer=optimizer, loss=losses, loss_weights=[0.3, 0.3, 0.3, 0.1])
+
+        self.disc_model = disc_model
+        self.combined_model = combined_model
+        self.gen_model_test = gen_model_test
 
     def save(self, filename):
-        self.model_train.save_weights(filename)
+        self.combined_model.save_weights(filename)
 
     def load(self, filename):
-        self.model_train.load_weights(filename)
-        self.model_test.load_weights(filename, by_name=True)
-
+        self.combined_model.load_weights(filename)
+        self.gen_model_test.load_weights(filename, by_name=True)
+        self.disc_model.load_weights(filename, by_name=True)
 
 if __name__ == "__main__":
     vae = VAE()
+    for l in vae.combined_model.layers:
+        ws = l.get_weights()
+        for w in ws:
+            print(w.shape)

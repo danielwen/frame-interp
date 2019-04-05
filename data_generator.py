@@ -2,7 +2,6 @@ import os
 import glob
 import numpy as np
 import cv2
-from vgg_model import vgg_model
 import sys
 
 np.random.seed(0)
@@ -54,7 +53,9 @@ class DataGenerator(object):
                 self.data.append(paths[i : i + n_context + 1])
 
         self.N = len(self.data)
-        self.steps = (self.N + batch_size - 1) // batch_size
+        # self.steps = (self.N + batch_size - 1) // batch_size
+        # throw away the last few examples for simplicity
+        self.steps = self.N // batch_size
         self.reset()
 
     def reset(self):
@@ -67,7 +68,6 @@ class DataGenerator(object):
         contexts = np.zeros((n, self.image_size, self.image_size, 3 * self.n_context))
         noises = np.random.normal(size=(n, self.latent_size))
         dummy = np.zeros((n, 1))
-        # features = []
 
         for i, idx in enumerate(indices):
             images = [load_preprocess(path) for path in self.data[idx]]
@@ -80,9 +80,6 @@ class DataGenerator(object):
 
             frames[i] = frame
             contexts[i] = context
-        # features = vgg_model.predict(frames)
-
-        # features = np.stack(features)
 
         if self.test:
             return [noises, contexts], [frames]
