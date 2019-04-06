@@ -112,10 +112,10 @@ def kl(truth, pred):
     return kl
 
 def get_vgg_loss():
-    # vgg_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
-    # loss_model = Model(inputs=vgg_model.input, outputs=vgg_model.get_layer('block3_conv3').output) 
-    mnet = mobilenet_v2.MobileNetV2(weights='imagenet', include_top=False, input_shape=(256,256,3))
-    loss_model = Model(inputs=mnet.input, outputs=mnet.get_layer('block3_conv3').output) 
+    vgg_model = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    loss_model = Model(inputs=vgg_model.input, outputs=vgg_model.get_layer('block3_conv3').output) 
+    # mnet = mobilenet_v2.MobileNetV2(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    # loss_model = Model(inputs=mnet.input, outputs=mnet.get_layer('block3_conv3').output) 
     loss_model.trainable = False
     def vgg_loss(truth, pred):    
         pred_feature = loss_model(pred)
@@ -124,10 +124,10 @@ def get_vgg_loss():
     return vgg_loss
     
 def get_discriminator():
-    # vgg = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
-    # flat = layers.Flatten()(vgg.output)
-    mnet = mobilenet_v2.MobileNetV2(weights='imagenet', include_top=False, input_shape=(256,256,3))
-    flat = layers.Flatten()(mnet.output)
+    vgg = vgg16.VGG16(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    flat = layers.Flatten()(vgg.output)
+    # mnet = mobilenet_v2.MobileNetV2(weights='imagenet', include_top=False, input_shape=(256,256,3))
+    # flat = layers.Flatten()(mnet.output)
     fc1_out = layers.Dense(4096, activation='relu')(flat)
     fc2_out = layers.Dense(4096, activation='relu')(fc1_out)
     valid_score = layers.Dense(1, activation='sigmoid')(fc2_out)
@@ -182,17 +182,42 @@ class VAE(object):
         losses = [keras.losses.mean_absolute_error, kl, get_vgg_loss(), keras.losses.binary_crossentropy]
         combined_model.compile(optimizer=optimizer, loss=losses, loss_weights=[0.3, 0.3, 0.3, 0.1])
 
+        #only l1 loss
+        model_l1 = Model(inputs=[input_, noise, context_input], \
+            outputs=[pred_train, z_param])
+        losses = [keras.losses.mean_absolute_error, kl]
+        model_l1.compile(optimizer=optimizer, loss=losses)
+
+        #vgg+l1 loss
+        model_l1_vgg = Model(inputs=[input_, noise, context_input], \
+            outputs=[pred_train, z_param, pred_train])
+        losses = [keras.losses.mean_absolute_error, kl, get_vgg_loss()]
+        model_l1_vgg.compile(optimizer=optimizer, loss=losses)
+
+
         self.disc_model = disc_model
         self.combined_model = combined_model
         self.gen_model_test = gen_model_test
+        self.model_l1 = model_l1
+        self.model_l1_vgg = model_l1_vgg
 
     def save(self, filename):
-        self.combined_model.save_weights(filename)
+        if('disc' in filename):
+            self.combined_model.save_weights(filename)
+        elif('vgg' in filename):
+            self.model_l1_vgg.save_weights(filename)
+        else:
+            self.model_l1.save_weights(filename)
 
     def load(self, filename):
-        self.combined_model.load_weights(filename)
         self.gen_model_test.load_weights(filename, by_name=True)
-        self.disc_model.load_weights(filename, by_name=True)
+        if('disc' in filename):
+            self.combined_model.load_weights(filename)
+            self.disc_model.load_weights(filename, by_name=True)
+        elif('vgg' in filename):
+            self.model_l1_vgg.load_weights(filename)
+        else:
+            self.model_l1.save_weights(filename)
 
 if __name__ == "__main__":
     vae = VAE()

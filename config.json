@@ -1,0 +1,6 @@
+{
+    "train_folder": "../DavisResizedCropped/DAVIS_Train_Val2",
+    "val_folder": "../DavisResizedCropped/DAVIS_Dev2",
+    "model_name": "l1.h5",
+    "load_model": true
+}
