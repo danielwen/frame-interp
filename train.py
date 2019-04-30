@@ -21,9 +21,9 @@ for epoch in range(1, epochs + 1):
     print("Epoch %d" % epoch)
     vae.model_train.fit_generator(train_data, steps_per_epoch=train_data.steps,
         callbacks=[tensorboard])
-    loss = vae.model_test.evaluate_generator(val_data, steps=val_data.steps)
-    print("Val Loss: %.4f" % loss)
+    (mse, psnr, ssim) = vae.model_test.evaluate_generator(val_data, steps=val_data.steps)
+    print("Val MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))
 
-    if loss < best_loss:
+    if mse < best_loss:
         vae.save("model.h5")
-        best_loss = loss
+        best_loss = mse
