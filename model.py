@@ -118,11 +118,14 @@ def mse(truth, pred):
     errors = K.square(pred - truth)
     return K.mean(K.reshape(errors, [-1, np.prod(pred.shape[1:])]), axis=-1)
 
+def scaled_mse(truth, pred):
+    return mse(MAX_VAL*truth, MAX_VAL*pred)
+
 def psnr(truth, pred):
-    return tf.image.psnr(truth, K.clip(pred, 0, MAX_VAL), MAX_VAL)
+    return tf.image.psnr(MAX_VAL*truth, K.clip(MAX_VAL*pred, 0, MAX_VAL), MAX_VAL)
 
 def ssim(truth, pred):
-    return tf.image.ssim(truth, K.clip(pred, 0, MAX_VAL), MAX_VAL)
+    return tf.image.ssim(MAX_VAL*truth, K.clip(MAX_VAL*pred, 0, MAX_VAL), MAX_VAL)
 
 
 class VAE(object):
@@ -163,10 +166,11 @@ class VAE(object):
             outputs=[pred_test])
 
         losses = [mse, kl]
+        metrics = [scaled_mse, psnr, ssim]
 
         optimizer = keras.optimizers.Adam(lr)
         model_train.compile(optimizer=optimizer, loss=losses)
-        model_test.compile(optimizer=optimizer, loss=mse, metrics=[psnr, ssim])
+        model_test.compile(optimizer=optimizer, loss=mse, metrics=metrics)
 
         self.model_train = model_train
         self.model_test = model_test

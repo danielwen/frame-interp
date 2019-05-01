@@ -20,7 +20,7 @@ def get_sequence_paths(folder):
 
 def load_preprocess(path):
     img = cv2.imread(path).astype("float32")
-    return np.flip(img, axis=-1)
+    return np.flip(img, axis=-1) / 255
 
 
 def horizontal_flip(image):
