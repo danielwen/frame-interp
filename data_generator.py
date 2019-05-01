@@ -29,13 +29,14 @@ def horizontal_flip(image):
 
 class DataGenerator(object):
     def __init__(self, folder, batch_size, image_size, latent_size, n_context,
-            test=False):
+            test=False, seed=None):
         sequence_paths = get_sequence_paths(folder)
         self.batch_size = batch_size
         self.image_size = image_size
         self.latent_size = latent_size
         self.n_context = n_context
         self.test = test
+        self.rng = np.random.RandomState(seed)
         self.data = []
 
         for paths in sequence_paths.values():
@@ -49,20 +50,20 @@ class DataGenerator(object):
         self.reset()
 
     def reset(self):
-        self.indices = np.random.permutation(self.N)
+        self.indices = self.rng.permutation(self.N)
         self.i = 0
 
     def make_batch(self, indices):
         n = len(indices)
         frames = np.zeros((n, self.image_size, self.image_size, 3))
         contexts = np.zeros((n, self.image_size, self.image_size, 3 * self.n_context))
-        noises = np.random.normal(size=(n, self.latent_size))
+        noises = self.rng.normal(size=(n, self.latent_size))
         dummy = np.zeros((n, 1))
 
         for i, idx in enumerate(indices):
             images = [load_preprocess(path) for path in self.data[idx]]
 
-            if np.random.choice([True, False]):
+            if self.rng.choice([True, False]):
                 images = [horizontal_flip(image) for image in images]
 
             before, frame, after = images

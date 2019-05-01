@@ -1,37 +1,43 @@
+import sys
 import numpy as np
-from scipy.misc import imsave
+import imageio
 from data_generator import DataGenerator
 from model import VAE
 
+prefix = sys.argv[1]
+
+seed = 1
 batch_size = 16
 image_size = 256
 latent_size = 512
 n_context = 2
 
 train_data = DataGenerator("DAVIS_Train_Val", batch_size, image_size,
-    latent_size, n_context, test=True)
+    latent_size, n_context, test=True, seed=seed)
 val_data = DataGenerator("DAVIS_Dev", batch_size, image_size, latent_size,
-    n_context, test=True)
+    n_context, test=True, seed=seed)
 test_data = DataGenerator("DAVIS_Challenge", batch_size, image_size, latent_size,
-    n_context, test=True)
+    n_context, test=True, seed=seed)
 
 vae = VAE()
 vae.load("model.h5")
 
-# print("Evaluating training...")
-# train_loss = vae.model_test.evaluate_generator(train_data, steps=train_data.steps, verbose=1)
-# print(train_loss)
-# print("Evaluating validation...")
-# val_loss = vae.model_test.evaluate_generator(val_data, steps=val_data.steps, verbose=1)
-# print(val_loss)
-# print("Evaluating test...")
-# test_loss = vae.model_test.evaluate_generator(test_data, steps=val_data.steps, verbose=1)
-# print(test_loss)
+def imwrite(img, name, idx):
+    img = np.round(np.clip(255*img, 0, 255)).astype("uint8")
+    imageio.imwrite("%s-1-%d.png" % (name, idx), img)
 
 for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
-    input_, _ = next(train_data)
-    pred = vae.model_test.predict_on_batch(input_)
-    result = np.clip(pred, 0, 1)
+    print("Evaluating %s" % name)
+    (_, mse, psnr, ssim) = vae.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
+    print("Val MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))
 
-    for i in range(result.shape[0]):
-        imsave("%s-%d.png" % (name, i), result[i])
+    input_, (truth,) = next(data)
+    (_, contexts) = input_
+    prevs, nexts = contexts[:, :, :, :3], contexts[:, :, :, 3:]
+    pred = vae.model_test.predict_on_batch(input_)
+
+    for label, batch in zip(("1", "2", "truth", "pred"), (prevs, nexts, truth, pred)):
+        result = np.round(np.clip(255*batch, 0, 255)).astype("uint8")
+
+        for i in range(result.shape[0]):
+            imageio.imwrite("%s_%s_%d_%s.png" % (prefix, name, i, label), result[i])
