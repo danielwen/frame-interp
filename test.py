@@ -22,15 +22,7 @@ test_data = DataGenerator("DAVIS_Challenge", batch_size, image_size, latent_size
 vae = VAE()
 vae.load("model.h5")
 
-def imwrite(img, name, idx):
-    img = np.round(np.clip(255*img, 0, 255)).astype("uint8")
-    imageio.imwrite("%s-1-%d.png" % (name, idx), img)
-
 for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
-    print("Evaluating %s" % name)
-    (_, mse, psnr, ssim) = vae.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
-    print("Val MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))
-
     input_, (truth,) = next(data)
     (_, contexts) = input_
     prevs, nexts = contexts[:, :, :, :3], contexts[:, :, :, 3:]
@@ -41,3 +33,8 @@ for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data
 
         for i in range(result.shape[0]):
             imageio.imwrite("%s_%s_%d_%s.png" % (prefix, name, i, label), result[i])
+
+    print("Evaluating %s" % name)
+    data.reset()
+    (_, mse, psnr, ssim) = vae.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
+    print("MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))

@@ -6,7 +6,7 @@ batch_size = 16
 image_size = 256
 latent_size = 512
 n_context = 2
-epochs = 20
+epochs = 40
 
 train_data = DataGenerator("DAVIS_Train_Val", batch_size, image_size,
     latent_size, n_context)
@@ -26,4 +26,4 @@ for epoch in range(1, epochs + 1):
 
     if ssim > best_loss:
         vae.save("model.h5")
-        best_loss = mse
+        best_loss = ssim
