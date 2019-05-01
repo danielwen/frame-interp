@@ -1,10 +1,7 @@
-import numpy as np
 import keras
 from keras import backend as K
 from keras import layers
-import tensorflow as tf
-
-MAX_VAL = 255
+import criterion
 
 
 class ConvBnRelu(object):
@@ -108,25 +105,6 @@ def sample_z(args):
     (noise, mean, log_var) = args
     return K.exp(log_var / 2) * noise + mean
 
-def kl(truth, pred):
-    mean = pred[:, 0, :]
-    log_var = pred[:, 1, :]
-    kl = 0.5 * K.sum(K.exp(log_var) + K.square(mean) - 1. - log_var, axis=1)
-    return kl
-
-def mse(truth, pred):
-    errors = K.square(pred - truth)
-    return K.mean(K.reshape(errors, [-1, np.prod(pred.shape[1:])]), axis=-1)
-
-def scaled_mse(truth, pred):
-    return mse(MAX_VAL*truth, MAX_VAL*pred)
-
-def psnr(truth, pred):
-    return tf.image.psnr(MAX_VAL*truth, K.clip(MAX_VAL*pred, 0, MAX_VAL), MAX_VAL)
-
-def ssim(truth, pred):
-    return tf.image.ssim(MAX_VAL*truth, K.clip(MAX_VAL*pred, 0, MAX_VAL), MAX_VAL)
-
 
 class VAE(object):
     def __init__(self, lr=0.001):
@@ -165,12 +143,13 @@ class VAE(object):
         model_test = keras.models.Model(inputs=[z_test, context_input],
             outputs=[pred_test])
 
-        losses = [mse, kl]
-        metrics = [scaled_mse, psnr, ssim]
+        # losses = [criterion.mse, criterion.kl]
+        losses = [criterion.neg_ssim, criterion.kl]
+        metrics = [criterion.scaled_mse, criterion.psnr, criterion.ssim]
 
         optimizer = keras.optimizers.Adam(lr)
         model_train.compile(optimizer=optimizer, loss=losses)
-        model_test.compile(optimizer=optimizer, loss=mse, metrics=metrics)
+        model_test.compile(optimizer=optimizer, loss=criterion.mse, metrics=metrics)
 
         self.model_train = model_train
         self.model_test = model_test
