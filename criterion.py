@@ -10,6 +10,10 @@ def kl(truth, pred):
     kl = 0.5 * K.sum(K.exp(log_var) + K.square(mean) - 1. - log_var, axis=1)
     return kl
 
+def l1(truth, pred):
+    errors = K.abs(pred - truth)
+    return K.mean(K.reshape(errors, [-1, np.prod(pred.shape[1:])]), axis=-1)
+
 def mse(truth, pred):
     errors = K.square(pred - truth)
     return K.mean(K.reshape(errors, [-1, np.prod(pred.shape[1:])]), axis=-1)

@@ -20,9 +20,9 @@ val_data = DataGenerator("DAVIS_Dev", batch_size, image_size, latent_size,
 test_data = DataGenerator("DAVIS_Challenge", batch_size, image_size, latent_size,
     n_context, test=True, seed=seed)
 
-# model = VAE()
-# model.load("model.h5")
-model = Identity1()
+model = VAE()
+model.load("model.h5")
+# model = Identity1()
 
 for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
     input_, (truth,) = next(data)

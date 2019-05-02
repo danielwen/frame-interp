@@ -144,7 +144,8 @@ class VAE(object):
             outputs=[pred_test])
 
         # losses = [criterion.mse, criterion.kl]
-        losses = [criterion.neg_ssim, criterion.kl]
+        losses = [criterion.l1, criterion.kl]
+        # losses = [criterion.neg_ssim, criterion.kl]
         metrics = [criterion.scaled_mse, criterion.psnr, criterion.ssim]
 
         optimizer = keras.optimizers.Adam(lr)
