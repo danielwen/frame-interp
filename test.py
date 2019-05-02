@@ -20,9 +20,9 @@ val_data = DataGenerator("DAVIS_Dev", batch_size, image_size, latent_size,
 test_data = DataGenerator("DAVIS_Challenge", batch_size, image_size, latent_size,
     n_context, test=True, seed=seed)
 
-model = VAE()
-model.load("model.h5")
-# model = Identity1()
+# model = VAE()
+# model.load("model.h5")
+model = Naive()
 
 for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
     input_, (truth,) = next(data)
@@ -36,7 +36,7 @@ for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data
         for i in range(result.shape[0]):
             imageio.imwrite("%s_%s_%d_%s.png" % (prefix, name, i, label), result[i])
 
-    print("Evaluating %s" % name)
-    data.reset()
-    (_, mse, psnr, ssim) = model.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
-    print("MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))
+    # print("Evaluating %s" % name)
+    # data.reset()
+    # (_, mse, psnr, ssim) = model.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
+    # print("MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))

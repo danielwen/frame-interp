@@ -5,17 +5,28 @@ import cv2
 
 
 def get_sequence_paths(folder):
+    """
+    Args
+        folder : str
+            Path containing subfolders of images
+    Returns
+        path_sequences : list(list(str))
+            For each folder, list of image paths in that folder
+    """
     pattern = os.path.join(folder, "**", "*.jpg")
     paths = glob.glob(pattern, recursive=True)
-    sequence_paths = {}
+    path_sequences = []
+    cur_folder = None
 
-    for path in paths:
+    for path in sorted(paths):
         directory, _ = os.path.split(path)
-        if directory not in sequence_paths:
-            sequence_paths[directory] = []
-        sequence_paths[directory].append(path)
+        if directory != cur_folder:
+            path_sequences.append([])
+            cur_folder = directory
 
-    return sequence_paths
+        path_sequences[-1].append(path)
+
+    return path_sequences
 
 
 def load_preprocess(path):
@@ -30,7 +41,7 @@ def horizontal_flip(image):
 class DataGenerator(object):
     def __init__(self, folder, batch_size, image_size, latent_size, n_context,
             test=False, seed=None):
-        sequence_paths = get_sequence_paths(folder)
+        path_sequences = get_sequence_paths(folder)
         self.batch_size = batch_size
         self.image_size = image_size
         self.latent_size = latent_size
@@ -39,9 +50,7 @@ class DataGenerator(object):
         self.rng = np.random.RandomState(seed)
         self.data = []
 
-        for paths in sequence_paths.values():
-            paths = tuple(sorted(paths))
-
+        for paths in path_sequences:
             for i in range(len(paths) - n_context):
                 self.data.append(paths[i : i + n_context + 1])
 
