@@ -1,51 +1,78 @@
-import sys
-import os
-from glob import glob
-from tqdm import tqdm
-import numpy as np
-import cv2
-
-def get_sequence_paths(folder):
-    pattern = os.path.join(folder, "**", "*.jpg")
-    paths = glob(pattern, recursive=True)
-    sequence_paths = {}
-
-    for path in paths:
-        directory, _ = os.path.split(path)
-        if directory not in sequence_paths:
-            sequence_paths[directory] = []
-        sequence_paths[directory].append(path)
-
-    return sequence_paths
-
-def load_preprocess(path):
-    img = cv2.imread(path).astype("float64")
-    img /= 255.0
-    return img
-
-def main():
-    folder = sys.argv[1]
-    sequence_paths = get_sequence_paths(folder)
-    start_dists = []
-    end_dists = []
-    interp_dists = []
-
-    for paths in tqdm(sequence_paths.values()):
-        images = list(map(load_preprocess, sorted(paths)))
-
-        for i in range(len(images) - 2):
-            start_frame = images[i]
-            mid_frame = images[i + 1]
-            end_frame = images[i + 2]
-            interp = (start_frame + end_frame) / 2
-            for dists, pred in zip([start_dists, end_dists, interp_dists],
-                    [start_frame, end_frame, interp]):
-                dist = np.mean((pred - mid_frame)**2)
-                dists.append(dist)
-
-    avg_dists = tuple([np.mean(dists)
-        for dists in (start_dists, end_dists, interp_dists)])
-    print("Identity1: %.4f | Identity2: %.4f | NaiveInterp: %.4f" % avg_dists)
+import keras
+from keras import backend as K
+from keras import layers
+import criterion
 
 
-main()
+def identity1(context_input):
+    return context_input[:, :, :, :3]
+
+def identity2(context_input):
+    return context_input[:, :, :, 3:]
+
+def interpolate(context_input):
+    prevs, nexts = context_input[:, :, :, :3], context_input[:, :, :, 3:]
+    return (prevs + nexts) / 2
+
+
+class Identity1(object):
+    def __init__(self, lr=0.001):
+        latent_size = 512
+        context_shape = (256, 256, 6)
+
+        context_input = layers.Input(shape=context_shape, name="input_ctx")
+        z_test = layers.Input(shape=(latent_size,), name="z_test")
+
+        pred_test = layers.Lambda(identity1)(context_input)
+
+        model_test = keras.models.Model(inputs=[z_test, context_input],
+            outputs=[pred_test])
+
+        metrics = [criterion.scaled_mse, criterion.psnr, criterion.ssim]
+
+        optimizer = keras.optimizers.Adam(lr)
+        model_test.compile(optimizer=optimizer, loss=criterion.mse, metrics=metrics)
+
+        self.model_test = model_test
+
+
+class Identity2(object):
+    def __init__(self, lr=0.001):
+        latent_size = 512
+        context_shape = (256, 256, 6)
+
+        context_input = layers.Input(shape=context_shape, name="input_ctx")
+        z_test = layers.Input(shape=(latent_size,), name="z_test")
+
+        pred_test = pred_test = layers.Lambda(identity2)(context_input)
+
+        model_test = keras.models.Model(inputs=[z_test, context_input],
+            outputs=[pred_test])
+
+        metrics = [criterion.scaled_mse, criterion.psnr, criterion.ssim]
+
+        optimizer = keras.optimizers.Adam(lr)
+        model_test.compile(optimizer=optimizer, loss=criterion.mse, metrics=metrics)
+
+        self.model_test = model_test
+
+
+class Naive(object):
+    def __init__(self, lr=0.001):
+        latent_size = 512
+        context_shape = (256, 256, 6)
+
+        context_input = layers.Input(shape=context_shape, name="input_ctx")
+        z_test = layers.Input(shape=(latent_size,), name="z_test")
+
+        pred_test = layers.Lambda(interpolate)(context_input)
+
+        model_test = keras.models.Model(inputs=[z_test, context_input],
+            outputs=pred_test)
+
+        metrics = [criterion.scaled_mse, criterion.psnr, criterion.ssim]
+
+        optimizer = keras.optimizers.Adam(lr)
+        model_test.compile(optimizer=optimizer, loss=criterion.mse, metrics=metrics)
+
+        self.model_test = model_test

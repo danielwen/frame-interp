@@ -3,6 +3,7 @@ import numpy as np
 import imageio
 from data_generator import DataGenerator
 from model import VAE
+from naive import Identity1, Identity2, Naive
 
 prefix = sys.argv[1]
 
@@ -19,14 +20,15 @@ val_data = DataGenerator("DAVIS_Dev", batch_size, image_size, latent_size,
 test_data = DataGenerator("DAVIS_Challenge", batch_size, image_size, latent_size,
     n_context, test=True, seed=seed)
 
-vae = VAE()
-vae.load("model.h5")
+# model = VAE()
+# model.load("model.h5")
+model = Identity1()
 
 for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data)):
     input_, (truth,) = next(data)
     (_, contexts) = input_
     prevs, nexts = contexts[:, :, :, :3], contexts[:, :, :, 3:]
-    pred = vae.model_test.predict_on_batch(input_)
+    pred = model.model_test.predict_on_batch(input_)
 
     for label, batch in zip(("1", "2", "truth", "pred"), (prevs, nexts, truth, pred)):
         result = np.round(np.clip(255*batch, 0, 255)).astype("uint8")
@@ -36,5 +38,5 @@ for name, data in zip(("train", "val", "test"), (train_data, val_data, test_data
 
     print("Evaluating %s" % name)
     data.reset()
-    (_, mse, psnr, ssim) = vae.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
+    (_, mse, psnr, ssim) = model.model_test.evaluate_generator(data, steps=data.steps, verbose=1)
     print("MSE: %.4f | PSNR: %.4f | SSIM: %.4f" % (mse, psnr, ssim))
